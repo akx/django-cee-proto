@@ -16,38 +16,51 @@ try:
 except NameError:
     text_type = str
 
-__all__ = ("Environ", "read_local_settings")
+__all__ = ("Config", "read_local_settings")
 
 
-def split(value):
-    return text_type(value).split(",")
+def to_list(value):
+    if isinstance(value, (text_type, str)):
+        return list(text_type(value).split(","))
+    return list(value)
 
 
-class Environ(object):
-    NOT_SET = object()
+NOT_SET = object()
 
-    def __init__(self, project_root, filename=None, section=None):
-        self._env = os.environ.copy()
+
+class Config(object):
+    NOT_SET = NOT_SET
+
+    def __init__(self, project_root, env_file=None):
         self.project_root = os.path.realpath(project_root)
         if not os.path.isdir(self.project_root):
             raise ValueError("Invalid project_root: %r" % project_root)
-        if filename:
-            self.read(filename, section)
+        self._data = {}
+        self._data.update(os.environ)
+        package_json = os.path.join(self.project_root, "package.json")
+        if os.path.isfile(package_json):
+            with file(package_json) as fp:
+                self._data.update(
+                    ("PACKAGE_%s" % k.upper(), v)
+                    for (k, v) in
+                    json.load(fp).items()
+                )
 
-    def _get_value(self, var, cast, default=NOT_SET):
-        if var not in self._env:
-            if default is Environ.NOT_SET:
-                raise ValueError("The %s variable is required" % var)
-            return default
-        return cast(self._env[var])
+        if env_file and os.path.isfile(env_file):
+            self.read_env(env_file)
 
-    def read(self, filename, section=None):
-        if not os.path.isfile(filename):
-            return
+    def read_env(self, filename, section=None):
         p = ConfigParser()
         p.read([filename])
         for section in ([section] if section else p.sections()):
-            self._env.update(p.items(section))
+            self._data.update(p.items(section))
+
+    def _get_value(self, var, cast, default=NOT_SET):
+        if var not in self._data:
+            if default is NOT_SET:
+                raise ValueError("The %s variable is required" % var)
+            return default
+        return cast(self._data[var])
 
     def str(self, var, default=NOT_SET):
         return self._get_value(var, cast=text_type, default=default)
@@ -65,7 +78,7 @@ class Environ(object):
         return self._get_value(var, cast=json.loads, default=default)
 
     def list(self, var, cast=None, default=NOT_SET):
-        return self._get_value(var, cast=split, default=default)
+        return self._get_value(var, cast=to_list, default=default)
 
     def db_url(self, var="DATABASE_URL", default=NOT_SET, **kwargs):
         url = self._get_value(var, cast=text_type, default=default)
