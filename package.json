@@ -1,0 +1,13 @@
+{
+  "name": "django-cee-proto",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "Proprietary",
+  "ceeVersion": "0.9",
+  "wsgi": "django_cee_proto.wsgi:application"
+}
